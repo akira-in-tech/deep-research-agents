@@ -1,0 +1,3 @@
+Internal AI Product Evaluation Note - Large Language Models 2026
+
+Our internal benchmarking team evaluated leading LLMs in Q1 2026. Claude Opus 4.x remained the top choice for complex reasoning and long-context tasks, with strong performance on multi-step agentic workflows. GPT-5 class models led on raw coding throughput. Gemini models offered the best price-to-performance for high-volume document processing. For enterprise deployments, the key differentiators were context window size, tool-use reliability, and data governance controls rather than raw benchmark scores.

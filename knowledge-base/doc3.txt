@@ -1,0 +1,3 @@
+Internal AI Product Evaluation Note - AI Coding Assistants 2026
+
+AI coding assistants matured significantly in 2026. The leading tools moved from autocomplete toward full agentic coding, able to plan, edit across files, run tests, and fix errors autonomously. Developer trust depended heavily on transparency: tools that showed their reasoning and diffs were preferred over black-box automation. Integration with existing IDEs and CI pipelines was the deciding factor for team adoption.

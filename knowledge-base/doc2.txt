@@ -1,0 +1,3 @@
+Internal AI Product Evaluation Note - Enterprise AI Platforms 2026
+
+Among enterprise AI platforms in 2026, the most adopted were those offering strong integration layers and compliance tooling. Platforms with native retrieval-augmented generation (RAG) and agent orchestration saw the fastest adoption in regulated industries like finance and healthcare. Pricing shifted toward usage-based models. The biggest barrier to adoption remained data security and auditability, not model capability.
