@@ -7,6 +7,12 @@ import { ObjectType, Field, Int } from '@nestjs/graphql';
 @ObjectType()
 export class ResearchReport {
   @Field()
+  sessionId!: string;
+
+  @Field(() => String, { nullable: true })
+  userId!: string | null;
+
+  @Field()
   route!: string;
 
   @Field()
@@ -17,6 +23,15 @@ export class ResearchReport {
 
   @Field(() => Int)
   evidenceCount!: number;
+
+  @Field(() => Int)
+  webEvidenceCount!: number;
+
+  @Field(() => Int)
+  localEvidenceCount!: number;
+
+  @Field(() => [String])
+  executedQueries!: string[];
 
   @Field(() => Int)
   citationsUsed!: number;

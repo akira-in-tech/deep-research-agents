@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../llm/llm.service';
 import { SearchQuery } from '../../core/research-state.interface';
+import { isRecord } from '../../core/validation';
 
 @Injectable()
 export class ReflectService {
@@ -68,14 +69,48 @@ Generate the supplementary search plan. Output the JSON now.`;
     };
 
     const raw = await this.llm.chat(this.systemPrompt, prompt);
-    const parsed = this.llm.extractJson<{
-      reflectionSummary: string;
-      supplementaryQueries: SearchQuery[];
-    }>(raw, fallback);
+    const parsed = this.llm.extractJson<unknown>(raw, fallback);
+    const record = isRecord(parsed) ? parsed : fallback;
+    const executed = new Set(
+      executedQueries.map((item) => item.trim().toLowerCase()),
+    );
+    const seen = new Set<string>();
+    const rawQueries = Array.isArray(record.supplementaryQueries)
+      ? record.supplementaryQueries
+      : [];
+    const supplementaryQueries = rawQueries
+      .filter(isRecord)
+      .map((item, index): SearchQuery | undefined => {
+        const queryText =
+          typeof item.query === 'string' ? item.query.trim() : '';
+        const dedupeKey = queryText.toLowerCase();
+        if (!queryText || executed.has(dedupeKey) || seen.has(dedupeKey)) {
+          return undefined;
+        }
+        seen.add(dedupeKey);
+
+        const preference =
+          typeof item.sourcePreference === 'string'
+            ? item.sourcePreference.toLowerCase()
+            : 'hybrid';
+        return {
+          sectionId:
+            typeof item.sectionId === 'string'
+              ? item.sectionId
+              : `gap_${index + 1}`,
+          query: queryText,
+          sourcePreference: ['web', 'local', 'hybrid'].includes(preference)
+            ? preference
+            : 'hybrid',
+          reason: typeof item.reason === 'string' ? item.reason : '',
+        };
+      })
+      .filter((item): item is SearchQuery => item !== undefined)
+      .slice(0, 6);
 
     this.logger.log(
-      `Reflect generated ${parsed.supplementaryQueries.length} supplementary queries`,
+      `Reflect generated ${supplementaryQueries.length} supplementary queries`,
     );
-    return parsed.supplementaryQueries;
+    return supplementaryQueries;
   }
 }

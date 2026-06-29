@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+volumes
+.git
+.env
+evaluation/results-*.json
+npm-debug.log*

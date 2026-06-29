@@ -1,0 +1,27 @@
+[
+  {
+    "id": "direct-greeting",
+    "question": "Hello, who are you?",
+    "expectedRoute": "direct"
+  },
+  {
+    "id": "ai-coding-tools",
+    "question": "Compare the leading AI coding assistants and cite reliable sources.",
+    "expectedRoute": "multiagent"
+  },
+  {
+    "id": "vector-databases",
+    "question": "Research Milvus versus other vector databases for enterprise RAG.",
+    "expectedRoute": "multiagent"
+  },
+  {
+    "id": "agent-architecture",
+    "question": "Analyze the benefits and risks of multi-agent research architectures.",
+    "expectedRoute": "multiagent"
+  },
+  {
+    "id": "simple-math",
+    "question": "What is 2 plus 2?",
+    "expectedRoute": "direct"
+  }
+]

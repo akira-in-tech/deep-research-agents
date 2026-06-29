@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MilvusClient } from '@zilliz/milvus2-sdk-node';
 import { VoyageAIClient } from 'voyageai';
 import { LlmService } from '../../llm/llm.service';
@@ -7,17 +8,22 @@ import { Evidence } from '../../core/research-state.interface';
 const COLLECTION_NAME = 'knowledge_base';
 
 @Injectable()
-export class LocalScoutService implements OnModuleInit {
+export class LocalScoutService {
   private readonly logger = new Logger(LocalScoutService.name);
-  private milvus!: MilvusClient;
-  private voyage!: VoyageAIClient;
+  private readonly milvus: MilvusClient;
+  private readonly voyage: VoyageAIClient;
 
-  constructor(private readonly llm: LlmService) {}
-
-  // Connect to Milvus and Voyage once at startup.
-  onModuleInit() {
-    this.milvus = new MilvusClient({ address: 'localhost:19530' });
-    this.voyage = new VoyageAIClient({ apiKey: process.env.VOYAGE_API_KEY });
+  constructor(
+    private readonly llm: LlmService,
+    config: ConfigService,
+  ) {
+    this.milvus = new MilvusClient({
+      address: config.get<string>('MILVUS_ADDRESS', 'localhost:19530'),
+      __SKIP_CONNECT__: true,
+    });
+    this.voyage = new VoyageAIClient({
+      apiKey: config.get<string>('VOYAGE_API_KEY'),
+    });
   }
   /**
    * Embed each query with Voyage, then run a vector similarity search
@@ -131,7 +137,15 @@ Filter and tag the evidence. Output the JSON now.`;
       summary: string;
       evidence: { sourceId: string; supportsQuestions: string[] }[];
       rejectedSourceIds: string[];
-    }>(raw, { summary: '', evidence: [], rejectedSourceIds: [] });
+    }>(raw, {
+      summary:
+        'Using unfiltered local results because relevance parsing failed.',
+      evidence: rawEvidence.map((evidence) => ({
+        sourceId: evidence.sourceId,
+        supportsQuestions: subQuestions,
+      })),
+      rejectedSourceIds: [],
+    });
 
     // Step 3: merge Claude's tags back onto the raw evidence we trust.
     const keptIds = new Set(parsed.evidence.map((e) => e.sourceId));

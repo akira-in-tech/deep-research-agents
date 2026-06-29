@@ -64,6 +64,7 @@ src/schema.gql
 # Generated research reports (ignore at root; track the committed example)
 research-report.md
 !examples/research-report.md
+evaluation/results-*.json
 
 .claude
 dist-test

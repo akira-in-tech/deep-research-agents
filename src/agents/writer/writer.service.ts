@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../llm/llm.service';
-import { Finding, SourceRef, AuditFlag } from '../../core/research-state.interface';
+import {
+  Finding,
+  SourceRef,
+  AuditFlag,
+} from '../../core/research-state.interface';
 
 @Injectable()
 export class WriterService {
@@ -18,8 +22,9 @@ export class WriterService {
     content: string,
     validSourceIds: Set<string>,
   ): string {
-    // Matches citation patterns like [WEB1_1-1] or [LOC1_2-3].
-    const citationPattern = /\[([A-Z]+\d+_\d+-\d+)\]/g;
+    // Match citation-like WEB/LOC brackets, including malformed IDs, so
+    // invented citations do not survive simply because their shape is wrong.
+    const citationPattern = /\[((?:WEB|LOC)[^\]]+)\]/gi;
 
     return content.replace(citationPattern, (match, id: string) => {
       // Keep the citation if it's valid; otherwise remove it.
@@ -37,7 +42,7 @@ export class WriterService {
   ): string {
     const citationPattern = /\[([A-Z]+\d+_\d+-\d+)\]/g;
     const citedIds = new Set<string>();
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = citationPattern.exec(content)) !== null) {
       citedIds.add(match[1]);
     }
@@ -50,7 +55,9 @@ export class WriterService {
       }
     }
 
-    return lines.length > 2 ? lines.join('\n') : '## References\n\n- No references cited';
+    return lines.length > 2
+      ? lines.join('\n')
+      : '## References\n\n- No references cited';
   }
   // The Writer's role: produce a deep, well-cited Markdown report.
   private readonly systemPrompt = `You are a senior research analyst and report writer. You produce the final deep-research report.
