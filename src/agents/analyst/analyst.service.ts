@@ -6,6 +6,7 @@ import {
   Finding,
   ClaimMapping,
 } from '../../core/research-state.interface';
+import { isRecord, nonEmptyStrings } from '../../core/validation';
 
 // What the Analyst produces.
 export interface AnalysisResult {
@@ -84,42 +85,83 @@ Analyze and output the JSON now.`;
     const sourceIds = evidencePool.slice(0, 3).map((e) => e.sourceId);
     const fallback = {
       analysisSummary: 'Default analysis',
-      needsMoreResearch: false,
-      missingGaps: [] as string[],
-      findings: [
-        {
-          claimId: 'c_1',
-          claim: `Multi-source retrieval completed for: ${query}`,
-          confidence: sourceIds.length ? 'medium' : 'low',
-          sourceIds,
-        },
-      ],
+      needsMoreResearch: sourceIds.length === 0,
+      missingGaps:
+        sourceIds.length === 0
+          ? ['No valid evidence was collected for the question.']
+          : ([] as string[]),
+      findings: sourceIds.length
+        ? [
+            {
+              claimId: 'c_1',
+              claim: `Multi-source retrieval completed for: ${query}`,
+              confidence: 'medium',
+              sourceIds,
+            },
+          ]
+        : [],
     };
 
     const raw = await this.llm.chat(this.systemPrompt, prompt);
-    const parsed = this.llm.extractJson<{
-      analysisSummary: string;
-      needsMoreResearch: boolean;
-      missingGaps: string[];
-      findings: Finding[];
-    }>(raw, fallback);
+    const parsed = this.llm.extractJson<unknown>(raw, fallback);
+    const record = isRecord(parsed) ? parsed : fallback;
+    const allowedSourceIds = new Set(evidencePool.map((e) => e.sourceId));
+    const rawFindings = Array.isArray(record.findings) ? record.findings : [];
+    const findings = rawFindings
+      .filter(isRecord)
+      .map((item, index): Finding | undefined => {
+        const claim = typeof item.claim === 'string' ? item.claim.trim() : '';
+        const validSourceIds = nonEmptyStrings(item.sourceIds).filter((id) =>
+          allowedSourceIds.has(id),
+        );
+        if (!claim || validSourceIds.length === 0) {
+          return undefined;
+        }
+
+        const confidence =
+          typeof item.confidence === 'string'
+            ? item.confidence.toLowerCase()
+            : 'low';
+        return {
+          claimId:
+            typeof item.claimId === 'string' && item.claimId.trim()
+              ? item.claimId.trim()
+              : `c_${index + 1}`,
+          claim,
+          confidence: ['high', 'medium', 'low'].includes(confidence)
+            ? confidence
+            : 'low',
+          sourceIds: validSourceIds,
+        };
+      })
+      .filter((item): item is Finding => item !== undefined);
+
+    const safeFindings = findings.length > 0 ? findings : fallback.findings;
+    const missingGaps = nonEmptyStrings(record.missingGaps);
+    const needsMoreResearch =
+      safeFindings.length === 0 ||
+      record.needsMoreResearch === true ||
+      missingGaps.length > 0;
 
     // Build the claim map (claimId -> sourceIds) from the findings.
-    const claimMap: ClaimMapping[] = parsed.findings.map((f) => ({
+    const claimMap: ClaimMapping[] = safeFindings.map((f) => ({
       claimId: f.claimId,
       sourceIds: f.sourceIds,
     }));
 
     this.logger.log(
-      `Analysis: ${parsed.findings.length} findings, needsMoreResearch=${parsed.needsMoreResearch}, ${parsed.missingGaps.length} gaps`,
+      `Analysis: ${safeFindings.length} findings, needsMoreResearch=${needsMoreResearch}, ${missingGaps.length} gaps`,
     );
 
     return {
-      analysis: parsed.analysisSummary,
-      findings: parsed.findings,
+      analysis:
+        typeof record.analysisSummary === 'string'
+          ? record.analysisSummary
+          : fallback.analysisSummary,
+      findings: safeFindings,
       claimMap,
-      needsMoreResearch: parsed.needsMoreResearch,
-      missingGaps: parsed.missingGaps,
+      needsMoreResearch,
+      missingGaps: missingGaps.length > 0 ? missingGaps : fallback.missingGaps,
     };
   }
 }

@@ -58,7 +58,7 @@ export class IntentRouterService {
    * Claude judgment, then validates the result.
    * This mirrors the dual-mode (rules + LLM) intent routing design.
    */
-  async route(query: string): Promise<IntentRoute> {
+  async route(query: string, memoryContext = ''): Promise<IntentRoute> {
     // Step 1: fast rule-based pre-check.
     const ruleRoute = this.detectIntentByRules(query);
     this.logger.log(`Rule-based pre-check: ${ruleRoute}`);
@@ -74,6 +74,7 @@ Routing rules:
 - "multiagent": anything needing research, multi-source verification, comparison, analysis, trends, or a report.`;
 
     const prompt = `User question: ${query}
+${memoryContext ? `Prior session context: ${memoryContext}\n` : ''}
 Rule-based hint: ${ruleRoute}
 Output the JSON now.`;
 

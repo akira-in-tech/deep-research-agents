@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - run: npm ci
+      - run: npx prettier --check "src/**/*.ts" "test/**/*.ts" README.md
+      - run: npx eslint "{src,apps,libs,test}/**/*.ts"
+      - run: npm run build
+      - run: npm test -- --runInBand
+      - run: npm audit --omit=dev --audit-level=high
+      - run: docker compose --profile app build app
+
+      - name: Start integration services
+        run: docker compose up -d redis postgres etcd minio standalone
+
+      - name: Wait for PostgreSQL and Milvus
+        run: |
+          for attempt in {1..30}; do
+            postgres_status=$(docker inspect --format='{{.State.Health.Status}}' research-postgres 2>/dev/null || true)
+            milvus_status=$(docker inspect --format='{{.State.Health.Status}}' milvus-standalone 2>/dev/null || true)
+            if [ "$postgres_status" = "healthy" ] && [ "$milvus_status" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose ps
+          exit 1
+
+      - name: Verify migrations and durable queue
+        run: |
+          npm run migration:run
+          npm run migration:show
+          npm run queue:smoke
+
+      - name: Run E2E tests
+        run: npm run test:e2e -- --runInBand
+        env:
+          TYPEORM_SYNC: 'false'
+          QUEUE_ENABLED: 'false'
+          REDIS_EVENTS_ENABLED: 'false'
+
+      - if: always()
+        run: docker compose down -v

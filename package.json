@@ -5,9 +5,20 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.11.0"
+  },
   "scripts": {
     "build": "nest build",
-    "dev": "tsc --outDir dist && node dist/src/main",
+    "dev": "nest start --watch",
+    "memory:smoke": "ts-node src/scripts/memory-smoke.ts",
+    "semantic-memory:smoke": "ts-node src/scripts/semantic-memory-smoke.ts",
+    "queue:smoke": "ts-node src/scripts/queue-smoke.ts",
+    "cli": "ts-node src/cli.ts",
+    "eval": "ts-node src/scripts/evaluate.ts",
+    "migration:run": "ts-node src/database/migrate.ts run",
+    "migration:show": "ts-node src/database/migrate.ts show",
+    "migration:revert": "ts-node src/database/migrate.ts revert",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -30,14 +41,20 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/graphql": "^13.4.2",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/typeorm": "^11.0.3",
     "@tavily/core": "^0.7.6",
     "@zilliz/milvus2-sdk-node": "^3.0.3",
     "ajv-formats": "^3.0.1",
+    "bullmq": "^5.79.2",
     "dotenv": "^17.4.2",
+    "fdir": "^6.5.0",
     "graphql": "^16.14.2",
+    "ioredis": "^5.11.1",
+    "pg": "^8.22.0",
     "readable-stream": "^4.7.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "typeorm": "^1.0.0",
     "voyageai": "^0.4.0"
   },
   "devDependencies": {
@@ -81,5 +98,23 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "thrift": {
+      "uuid": "11.1.1"
+    },
+    "@nestjs/graphql": {
+      "ws": "8.21.0"
+    },
+    "graphql-ws": {
+      "ws": "8.21.0"
+    },
+    "isomorphic-ws": {
+      "ws": "8.21.0"
+    },
+    "subscriptions-transport-ws": {
+      "ws": "7.5.11"
+    },
+    "multer": "2.2.0"
   }
 }

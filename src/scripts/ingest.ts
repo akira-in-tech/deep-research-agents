@@ -25,7 +25,12 @@ async function main() {
   await milvus.createCollection({
     collection_name: COLLECTION_NAME,
     fields: [
-      { name: 'id', data_type: DataType.Int64, is_primary_key: true, autoID: true },
+      {
+        name: 'id',
+        data_type: DataType.Int64,
+        is_primary_key: true,
+        autoID: true,
+      },
       { name: 'doc_id', data_type: DataType.VarChar, max_length: 256 },
       { name: 'text', data_type: DataType.VarChar, max_length: 8192 },
       { name: 'vector', data_type: DataType.FloatVector, dim: EMBEDDING_DIM },

@@ -115,7 +115,14 @@ Filter and tag the evidence. Output the JSON now.`;
       summary: string;
       evidence: { sourceId: string; supportsQuestions: string[] }[];
       rejectedSourceIds: string[];
-    }>(raw, { summary: '', evidence: [], rejectedSourceIds: [] });
+    }>(raw, {
+      summary: 'Using unfiltered web results because relevance parsing failed.',
+      evidence: rawEvidence.map((evidence) => ({
+        sourceId: evidence.sourceId,
+        supportsQuestions: subQuestions,
+      })),
+      rejectedSourceIds: [],
+    });
 
     // Step 3: merge Claude's tags back onto the raw evidence we trust.
     const keptIds = new Set(parsed.evidence.map((e) => e.sourceId));

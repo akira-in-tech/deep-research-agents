@@ -5,6 +5,7 @@ import {
   SearchQuery,
   ResearchBudget,
 } from '../../core/research-state.interface';
+import { finiteNumber, isRecord, nonEmptyStrings } from '../../core/validation';
 
 // The shape Planner produces and writes back into the shared state.
 export interface PlanResult {
@@ -65,8 +66,9 @@ Rules:
    * Calls Claude, safely parses the JSON, and falls back to a
    * minimal plan if parsing fails — so the pipeline never breaks.
    */
-  async plan(query: string): Promise<PlanResult> {
+  async plan(query: string, memoryContext = ''): Promise<PlanResult> {
     const prompt = `User query: ${query}
+${memoryContext ? `Prior session context: ${memoryContext}\n` : ''}
 First decompose the problem, then output the planning JSON.`;
 
     const raw = await this.llm.chat(this.systemPrompt, prompt);
@@ -102,7 +104,86 @@ First decompose the problem, then output the planning JSON.`;
       },
     };
 
-    const result = this.llm.extractJson<PlanResult>(raw, fallback);
+    const parsed = this.llm.extractJson<unknown>(raw, fallback);
+    const record = isRecord(parsed) ? parsed : fallback;
+
+    const subQuestions = nonEmptyStrings(record.subQuestions, 4);
+    const rawOutline = Array.isArray(record.outline) ? record.outline : [];
+    const outline = rawOutline
+      .filter(isRecord)
+      .map((section, index): OutlineSection => ({
+        id:
+          typeof section.id === 'string' && section.id.trim()
+            ? section.id.trim()
+            : `sec_${index + 1}`,
+        title:
+          typeof section.title === 'string' && section.title.trim()
+            ? section.title.trim()
+            : `Section ${index + 1}`,
+        description:
+          typeof section.description === 'string'
+            ? section.description.trim()
+            : '',
+        sectionType:
+          typeof section.sectionType === 'string'
+            ? section.sectionType
+            : 'mixed',
+        priority: finiteNumber(section.priority, index + 1),
+        searchQueries: nonEmptyStrings(section.searchQueries, 6),
+        status: typeof section.status === 'string' ? section.status : 'pending',
+      }))
+      .slice(0, 8);
+
+    const rawSearchPlan = Array.isArray(record.searchPlan)
+      ? record.searchPlan
+      : [];
+    const searchPlan = rawSearchPlan
+      .filter(isRecord)
+      .map((item): SearchQuery | undefined => {
+        const query = typeof item.query === 'string' ? item.query.trim() : '';
+        if (!query) {
+          return undefined;
+        }
+        const preference =
+          typeof item.sourcePreference === 'string'
+            ? item.sourcePreference.toLowerCase()
+            : 'hybrid';
+        return {
+          sectionId:
+            typeof item.sectionId === 'string' ? item.sectionId : 'sec_1',
+          query,
+          sourcePreference: ['web', 'local', 'hybrid'].includes(preference)
+            ? preference
+            : 'hybrid',
+          reason: typeof item.reason === 'string' ? item.reason : '',
+        };
+      })
+      .filter((item): item is SearchQuery => item !== undefined)
+      .slice(0, 6);
+
+    const rawBudget = isRecord(record.budget) ? record.budget : {};
+    const result: PlanResult = {
+      objective:
+        typeof record.objective === 'string' && record.objective.trim()
+          ? record.objective.trim()
+          : fallback.objective,
+      subQuestions:
+        subQuestions.length > 0 ? subQuestions : fallback.subQuestions,
+      outline: outline.length > 0 ? outline : fallback.outline,
+      searchPlan: searchPlan.length > 0 ? searchPlan : fallback.searchPlan,
+      budget: {
+        maxRounds: finiteNumber(rawBudget.maxRounds, fallback.budget.maxRounds),
+        maxSources: finiteNumber(
+          rawBudget.maxSources,
+          fallback.budget.maxSources,
+        ),
+        maxTokens: finiteNumber(rawBudget.maxTokens, fallback.budget.maxTokens),
+        maxSeconds: finiteNumber(
+          rawBudget.maxSeconds,
+          fallback.budget.maxSeconds,
+        ),
+      },
+    };
 
     this.logger.log(
       `Plan ready: ${result.subQuestions.length} sub-questions, ${result.searchPlan.length} search queries`,

@@ -5,6 +5,7 @@ import {
   AuditFlag,
   SourceRef,
 } from '../../core/research-state.interface';
+import { isRecord } from '../../core/validation';
 
 // What EvidenceJudge produces.
 export interface JudgeResult {
@@ -42,8 +43,15 @@ export class EvidenceJudgeService {
 
     // Mainstream media / known tech outlets.
     const mediaDomains = [
-      'reuters', 'bloomberg', 'microsoft', 'ibm', 'deloitte',
-      'forbes', 'techcrunch', 'wired', 'theverge',
+      'reuters',
+      'bloomberg',
+      'microsoft',
+      'ibm',
+      'deloitte',
+      'forbes',
+      'techcrunch',
+      'wired',
+      'theverge',
     ];
     if (mediaDomains.some((d) => url.includes(d))) {
       return { score: 0.72, reason: 'Mainstream media domain' };
@@ -95,6 +103,18 @@ Constraints:
     // Step 1: combine both sources.
     const combined = [...webEvidence, ...localEvidence];
 
+    if (combined.length === 0) {
+      return {
+        evidencePool: [],
+        auditFlags: subQuestions.map((subQuestion) => ({
+          type: 'missing_evidence',
+          target: subQuestion,
+          reason: 'No evidence was collected for this sub-question.',
+        })),
+        sourceIndex: [],
+      };
+    }
+
     // Step 2: rule-based scoring.
     const scored = combined.map((e) => {
       const { score, reason } = this.scoreEvidence(e);
@@ -126,10 +146,48 @@ ${JSON.stringify(
 Audit the evidence. Output the JSON now.`;
 
     const raw = await this.llm.chat(this.systemPrompt, prompt);
-    const parsed = this.llm.extractJson<{
-      summary: string;
-      auditFlags: AuditFlag[];
-    }>(raw, { summary: '', auditFlags: [] });
+    const parsed = this.llm.extractJson<unknown>(raw, {
+      summary: '',
+      auditFlags: [],
+    });
+    const record = isRecord(parsed) ? parsed : {};
+    const rawAuditFlags = Array.isArray(record.auditFlags)
+      ? record.auditFlags
+      : [];
+    const auditFlags = rawAuditFlags
+      .filter(isRecord)
+      .map((flag): AuditFlag | undefined => {
+        const type = typeof flag.type === 'string' ? flag.type : '';
+        const target =
+          typeof flag.target === 'string' ? flag.target.trim() : '';
+        const reason =
+          typeof flag.reason === 'string' ? flag.reason.trim() : '';
+        if (
+          !['conflict', 'low_confidence', 'missing_evidence'].includes(type) ||
+          !target ||
+          !reason
+        ) {
+          return undefined;
+        }
+        return { type, target, reason };
+      })
+      .filter((flag): flag is AuditFlag => flag !== undefined);
+
+    for (const evidence of evidencePool) {
+      if (
+        (evidence.reliabilityScore ?? 0) < 0.6 &&
+        !auditFlags.some(
+          (flag) =>
+            flag.type === 'low_confidence' && flag.target === evidence.sourceId,
+        )
+      ) {
+        auditFlags.push({
+          type: 'low_confidence',
+          target: evidence.sourceId,
+          reason: evidence.reliabilityReason ?? 'Reliability is below 0.6.',
+        });
+      }
+    }
 
     // Step 5: build the source index for citations.
     const sourceIndex: SourceRef[] = evidencePool.map((e) => ({
@@ -140,12 +198,12 @@ Audit the evidence. Output the JSON now.`;
     }));
 
     this.logger.log(
-      `Judged: ${evidencePool.length} evidence after dedup, ${parsed.auditFlags.length} audit flags`,
+      `Judged: ${evidencePool.length} evidence after dedup, ${auditFlags.length} audit flags`,
     );
 
     return {
       evidencePool,
-      auditFlags: parsed.auditFlags,
+      auditFlags,
       sourceIndex,
     };
   }

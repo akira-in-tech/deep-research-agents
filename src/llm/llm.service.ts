@@ -14,6 +14,8 @@ export class LlmService implements OnModuleInit {
   onModuleInit() {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
+      maxRetries: 2,
+      timeout: 60_000,
     });
   }
   /**

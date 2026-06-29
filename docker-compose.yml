@@ -1,4 +1,61 @@
 services:
+  app:
+    profiles: ['app']
+    build: .
+    container_name: deep-research-app
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379
+      MILVUS_ADDRESS: standalone:19530
+      TYPEORM_SYNC: 'false'
+      TYPEORM_MIGRATIONS_RUN: 'true'
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      standalone:
+        condition: service_healthy
+
+  redis:
+    container_name: research-redis
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - ./volumes/redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    container_name: research-postgres
+    image: postgres:16
+    environment:
+      POSTGRES_USER: research
+      POSTGRES_PASSWORD: research
+      POSTGRES_DB: research_memory
+    ports:
+      - '5433:5432'
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U research']
+      interval: 10s
+      timeout: 5s
+      retries: 5
   etcd:
     container_name: milvus-etcd
     image: quay.io/coreos/etcd:v3.5.18

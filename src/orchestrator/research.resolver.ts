@@ -13,7 +13,9 @@ export class ResearchResolver {
   @Query(() => ResearchReport)
   async research(
     @Args('question') question: string,
+    @Args('sessionId', { nullable: true }) sessionId?: string,
+    @Args('userId', { nullable: true }) userId?: string,
   ): Promise<ResearchReport> {
-    return this.orchestrator.research(question);
+    return this.orchestrator.research(question, sessionId, userId);
   }
 }
